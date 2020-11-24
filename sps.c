@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 //Structure for cells in rows
 typedef struct {
@@ -23,6 +24,11 @@ typedef struct {
     Trow *rows;
 } Ttable;
 
+typedef struct {
+    char **argv;
+    int argc;
+} Targs;
+
 /* Set default values to an empty cell
  * @return : empty cell 
  */
@@ -34,7 +40,7 @@ Tcell cell_init(){
 }   
 
 /* Set default values of an empty row
- * @param : pointer to row to initialize
+ * @return : empty row
  */
 Trow row_init(){
     Trow new_row;
@@ -44,6 +50,7 @@ Trow row_init(){
     return new_row;
 }
 
+//Same as row_init function
 void table_init(Ttable *table){
     table->size = 0;
     table->cap = 0;
@@ -51,7 +58,7 @@ void table_init(Ttable *table){
 }
 
 /*
- * Change size of cell capacity
+ * Change cell capacity to a higher number
  * @param : pointer to cell to change its capacity
  * @param : new capacity
  */
@@ -61,11 +68,16 @@ void cell_resize(Tcell *cell, int new_cap){
     if (resized != NULL){
         cell->text = resized;
         cell->cap = new_cap;
+        for (int i = cell->size; i < cell->cap; i++){ //initialize all chars to '\'
+            cell->text[i] = '\0';
+        }
     }
 }
 
 /*
- * Same as cell_resize function
+ * Change row capacity to a higher number
+ * @param : pointer to row
+ * @param : new row capacity
  */
 void row_resize(Trow *row, int cells_n){
     void *resized;
@@ -77,6 +89,9 @@ void row_resize(Trow *row, int cells_n){
     }
 }
 
+/*
+ * Same as row_resize
+ */
 void table_resize(Ttable *table, int rows_n){
     void *resized;
     resized = realloc(table->rows, rows_n * sizeof(Trow));
@@ -109,7 +124,7 @@ void cell_append(Tcell *cell, char item){
  */ 
 void row_append(Trow *row, int current_cell){
     if (row->cap == row->size){
-        row_resize(row, row->cap ? row->cap * 2 : 1);
+        row_resize(row, row->cap + 1);
     }
     if (row->size < row->cap){
         row->cells[current_cell] = cell_init();
@@ -117,6 +132,9 @@ void row_append(Trow *row, int current_cell){
     }
 }
 
+/*
+ * Same as row_append function
+ */
 void table_append(Ttable *table, int current_row){
     if (table->cap == table->size){
         table_resize(table, current_row+1);
@@ -126,6 +144,7 @@ void table_append(Ttable *table, int current_row){
         table->size++;
     }
 }
+
 /*
  * Print the content of cell
  * @param : pointer to cell
@@ -133,7 +152,8 @@ void table_append(Ttable *table, int current_row){
 void cell_print(Tcell *cell){
     for (int i = 0; i < cell->size; i++){
         printf("%c", cell->text[i]);
-    }  }
+    }
+}
 
 /*
  * Same as cell print function
@@ -141,18 +161,25 @@ void cell_print(Tcell *cell){
 void row_print(Trow *row){
     for (int i = 0; i < row->size; i++){
         cell_print(&row->cells[i]);
-    } putchar('\n');
-
-}
+        //put delimiter after each cell
+        if (i != row->size-1){
+            putchar(':');
+        }
+    }
+} 
 
 void table_print(Ttable *table){
     for (int i = 0; i < table->size; i++){
         row_print(&table->rows[i]);
+        if (i != table->size-1){
+            //put newline character at the end of a row
+            putchar('\n');
+        }
     }
 }
 
 /*
- * Destroy cell
+ * Free pointer to a cell
  * @param : pointer to cell
  */
 void cell_destroy(Tcell *cell){
@@ -161,7 +188,7 @@ void cell_destroy(Tcell *cell){
 }
 
 /*
- * Same as cell destroy function
+ * Same as cell_destroy function
  */
 void row_destroy(Trow *row){
     for (int i = 0; i < row->size; i++){
@@ -172,17 +199,49 @@ void row_destroy(Trow *row){
         free(row->cells);
 }
 
-int main(){
+/*
+ * Same as row_destroy function
+ */
+void table_destroy(Ttable *table){
+    for (int i = 0; i < table->size; i++){
+        row_destroy(&table->rows[i]);
+    }
+
+    if (table->cap){
+        free(table->rows);
+    }
+}
+
+void end(Ttable *table){
+    table_print(table);
+    table_destroy(table);
+}
+
+char * find_delim(const Targs args){
+    char *delim = " ";
+    if (args.argc >= 3){
+        if (!strcmp(args.argv[1], "-d")){
+            delim = args.argv[2];
+        } 
+    }
+    return delim;
+}
+
+int main(int argc, char **argv){
     Ttable table;
     table_init(&table);
 
+    Targs args = {argv, argc};
+
+    char *delims = find_delim(args);
+    (void) delims;
     int c, current_cell = 0, current_row = 0;
     while ((c = fgetc(stdin)) != EOF){
         if (table.rows == NULL){
             table_append(&table, current_row);
         }
         
-        if (c == '\n' ){ //TODO make \n as the last cell of each row
+        if (c == '\n'){ 
             current_cell = 0;
             current_row++;
             table_append(&table, current_row); 
@@ -202,9 +261,7 @@ int main(){
         cell_append(&table.rows[current_row].cells[current_cell], c);
     }
 
-    row_destroy(&table.rows[current_row]);
-    table_print(&table);
-    printf("%d ", table.cap);
+    end(&table);
     return 0;
 }
 
