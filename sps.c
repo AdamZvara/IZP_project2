@@ -4,10 +4,13 @@
  * @date: 24.10.2020
  * @brief: A short program for parsing and editing a file - table 
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+
+#define DELIM delims[0]
 
 //Structure for cells in rows
 typedef struct {
@@ -164,19 +167,18 @@ void row_print(Trow *row, char delim){
 } 
 
 // @see: cell_print
-// @params: parsing delim so i can print it in row_print
+// @params: passing delim for printing it in row_print
 void table_print(Ttable *table, char delim){
     for (int i = 0; i < table->size; i++){
         row_print(&table->rows[i], delim);
         if (i != table->size-1){
-            //put newline character at the end of a row
             putchar('\n');
         }
-    }
+    } putchar('\n');
 }
 
 /*
- * Free pointer to a (cell, row, table)
+ * Free pointer to a structure (cell, row, table)
  * @param: pointer to structure (cell, row, table)
  */
 void cell_destroy(Tcell *cell){
@@ -222,25 +224,40 @@ bool isdelim(char c, char *delims){
     return false;
 }
 
-void create_table(Ttable *table, FILE *fr, char *delims){
+
+/*
+ * Take input from a file and insert it into table
+ * @params table: pointer to a table structre
+ * @params: source file
+ * @params: delimiters
+ */
+void create_table(Ttable *table, FILE *source, char *delims){
     int c, current_cell = 0, current_row = 0;
-    while ((c = fgetc(fr)) != EOF){
+    int quotes_active = 0;
+    bool escape_active = false;
+
+    while ((c = fgetc(source)) != EOF){
         if (table->rows == NULL){
             table_append(table, current_row);
         }
+        if (table->rows[current_row].cells == NULL){
+            row_append(&table->rows[current_row], current_cell);
+        }
+        //rethink and rewrite this so, both \ and "" are working at the same time and are printed
+        escape_active = false;
 
         if (c == '\n'){ 
             current_cell = 0;
             current_row++;
             table_append(table, current_row); 
             continue;
-        } 
+        } else if (c == '"'){
+            quotes_active *= -1;
+        } else if (c == '\\'){
+            escape_active = true;
+        }
 
-        if (table->rows[current_row].cells == NULL){
-            row_append(&table->rows[current_row], current_cell);
-        }   
-        
-        if (isdelim(c, delims)){
+        if (isdelim(c, delims) && !quotes_active && !escape_active){
             current_cell++;
             row_append(&table->rows[current_row], current_cell);
             continue;
@@ -249,11 +266,14 @@ void create_table(Ttable *table, FILE *fr, char *delims){
         cell_append(&table->rows[current_row].cells[current_cell], c);
     }
 
+    //delete last row
+    row_destroy(&table->rows[table->size]-1);
+    table->size--;
 }
 
 /*
  * Function for printing the table and freeing its content
- * @param: pointer to a structure (table)
+ * @params table: pointer to a table structre
  * @param: MAIN DELIMITER - first delimiter in delims
  */
 void end(Ttable *table, char delim){
@@ -263,7 +283,7 @@ void end(Ttable *table, char delim){
 
 /*
  * Locate delim in program arguments 
- * @params: args structure
+ * @params args: agrv, argc in one structure
  * @return: string with space or string of delimiters
  */
 char * find_delim(const Targs args){
@@ -278,14 +298,45 @@ char * find_delim(const Targs args){
 
 /*
  * Open a file and return pointer to it
- * @params: name of a file
+ * @params src: source file name
  * @return: pointer to an opened file
  */
-FILE * open_file(char *name){
+FILE * open_file(char *src){
     FILE *fr;
-    fr = fopen(name, "r");
+    fr = fopen(src, "r");
     return fr;
 }   
+
+/*
+ * Get length of the longest row
+ * @params table: pointer to a table structre
+ * @return: maximal row size in a table
+ */
+int get_max_row(Ttable table){
+    int max_row = 0;
+    
+    for (int i = 0; i < table.size; i++){
+        if (table.rows[i].size > max_row){
+            max_row = table.rows[i].size;        
+        }
+    }
+
+    return max_row;
+}
+
+/*
+ * Fill the table with empty cells so each row has equal ammount of cells
+ * @params table: pointer to a table structre
+ */
+void fill_table(Ttable *table){
+    int max_row = get_max_row(*table);
+    
+    for (int i = 0; i < table->size; i++){
+        while (table->rows[i].size != max_row){
+            row_append(&table->rows[i], table->rows[i].size);
+        }
+    }  
+}
 
 
 int main(int argc, char **argv){
@@ -294,12 +345,10 @@ int main(int argc, char **argv){
         printf("malo argumentov\n");
         return 1;
     }
-
    
     Targs args = {argv, argc};
 
     char *delims = find_delim(args);
-    (void) delims;
     
     FILE *fr;
     fr = open_file(argv[argc-1]);
@@ -312,8 +361,10 @@ int main(int argc, char **argv){
     Ttable table;
     table_init(&table);
     create_table(&table, fr, delims);
-   
-    end(&table, delims[0]);
+    
+    fill_table(&table);
+
+    end(&table, DELIM);
     return 0;
 }
 
