@@ -40,14 +40,8 @@ typedef struct {
 } Args;
 
 typedef struct {
-    char *content;
-} Commands;
-
-typedef struct {
-    int r_start;
-    int r_end;
-    int c_start;
-    int c_end;
+    int row;
+    int cell;
 } Selection;
 
 /* Set default values to an empty structure (cell, row, table)
@@ -179,7 +173,7 @@ void row_print(Row *row, char delim, FILE *dst){
 
 // @see: cell_print
 // @params: passing delim for printing it in row_print
-void table_print(Table *table, char delim, FILE *dst){
+void table_print(Table *table,  char delim, FILE *dst){
     for (int i = 0; i < table->size; i++){
         row_print(&table->rows[i], delim, dst);
         if (i != table->size-1){
@@ -351,19 +345,36 @@ void fill_table(Table *table){
     }  
 }
 
-//FIXME pracovat na ulozeni argumentov do struktury a rozdelenie podla ;
-void get_commands(Args args, Commands *cmds){
-    cmds->content = malloc(20);
+void fill_commands(Args args, Row *cmds){
+    cmds->size = cmds->cap = 0;
+    cmds->cells = NULL;
+    int current = 0;
+    row_append(cmds, 0);
     for (size_t i = 0; i < strlen(args.argv[1]); i++){
-        /*if (i == ';'){
-            //new command found
-        }*/
-        if (strlen(cmds->content) < )
-        cmds->content[i] = args.argv[1][i];
+        if (args.argv[1][i] == ';'){
+            row_append(cmds, current+1);
+            current++;
+            continue;
+        }
+        cell_append(&cmds->cells[current], args.argv[1][i]);
     }
-    cmds->content[19] = '\0';
-    printf("%s\n", cmds->content);
 }
+
+void edit_selection(char *text, Selection *selection){
+    int first_p = (int) text[1] - '0';
+    int second_p = (int) text[3] - '0';
+    selection->row = first_p;
+    selection->cell = second_p;
+}
+
+void process_cmds(Row *cmds, Selection *selection){
+    for (int i = 0; i < cmds->size; i++){
+        if (cmds->cells[i].text[0] == '['){
+            edit_selection(cmds->cells[i].text, selection);
+        }
+    }
+}
+
 
 int main(int argc, char **argv){
     if (argc < 3){
@@ -376,7 +387,8 @@ int main(int argc, char **argv){
     char *delims = find_delim(args);
     Table table;
     table_init(&table);
-    Commands cmds = {NULL};
+    Row commands;
+    Selection selection = {0};
 
     FILE *fr;
     fr = open_file(argv[argc-1]);
@@ -389,11 +401,14 @@ int main(int argc, char **argv){
     create_table(&table, fr, delims);    
     fill_table(&table);
 
-    get_commands(args, &cmds);
+    fill_commands(args, &commands);
+    process_cmds(&commands, &selection);
 
     rewind(fr);
     end(&table, DELIM, fr);
+    row_destroy(&commands);
     fclose(fr);
+
     return 0;
 }
 
