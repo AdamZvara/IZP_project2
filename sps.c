@@ -17,48 +17,59 @@ typedef struct {
     int size;
     int cap;
     char *text;
-} Tcell;
+} Cell;
 
 //Strucure for rows in table
 typedef struct {
     int size;
     int cap;
-    Tcell *cells;
-} Trow;
+    Cell *cells;
+} Row;
 
 //Table structure
 typedef struct {
     int size;
     int cap;
-    Trow *rows;
-} Ttable;
+    Row *rows;
+} Table;
 
 //Pack argv and argc into one structure Targs
 typedef struct {
     char **argv;
     int argc;
-} Targs;
+} Args;
+
+typedef struct {
+    char *content;
+} Commands;
+
+typedef struct {
+    int r_start;
+    int r_end;
+    int c_start;
+    int c_end;
+} Selection;
 
 /* Set default values to an empty structure (cell, row, table)
  * @return : empty initialized structure (cell, row)
  */
-Tcell cell_init(){
-    Tcell new_cell;
+Cell cell_init(){
+    Cell new_cell;
     new_cell.size = new_cell.cap = 0;
     new_cell.text = NULL;
     return new_cell;
 }   
 
 // @see: cell_init()
-Trow row_init(){
-    Trow new_row;
+Row row_init(){
+    Row new_row;
     new_row.size = new_row.cap = 0;
     new_row.cells = NULL;
     return new_row;
 }
 
 // @see row_init function
-void table_init(Ttable *table){
+void table_init(Table *table){
     table->size = table->cap = 0;
     table->cap = 0;
     table->rows = NULL;
@@ -69,7 +80,7 @@ void table_init(Ttable *table){
  * @param: pointer to structure (cell, row, table) to change its capacity
  * @param: new capacity
  */
-void cell_resize(Tcell *cell, int new_cap){
+void cell_resize(Cell *cell, int new_cap){
     char *resized;
     resized = realloc(cell->text, new_cap * sizeof(char));
     if (resized != NULL){
@@ -83,9 +94,9 @@ void cell_resize(Tcell *cell, int new_cap){
 
 // @see: cell_resize
  
-void row_resize(Trow *row, int cells_n){
+void row_resize(Row *row, int cells_n){
     void *resized;
-    resized = realloc(row->cells, cells_n * sizeof(Tcell));
+    resized = realloc(row->cells, cells_n * sizeof(Cell));
 
     if (resized != NULL){
         row->cells = resized;
@@ -94,9 +105,9 @@ void row_resize(Trow *row, int cells_n){
 }
 
 // @see: cell_resize
-void table_resize(Ttable *table, int rows_n){
+void table_resize(Table *table, int rows_n){
     void *resized;
-    resized = realloc(table->rows, rows_n * sizeof(Trow));
+    resized = realloc(table->rows, rows_n * sizeof(Row));
 
     if (resized != NULL){
         table->rows = resized;
@@ -109,7 +120,7 @@ void table_resize(Ttable *table, int rows_n){
  * @param: pointer to structure (cell, row, table)
  * @param: (character, cell, row) to append
  */
-void cell_append(Tcell *cell, char item){
+void cell_append(Cell *cell, char item){
     if (cell->cap == cell->size){
     
         //if cell is empty, set its capacity to 1
@@ -123,7 +134,7 @@ void cell_append(Tcell *cell, char item){
 }
 
 // @see: cell_append()
-void row_append(Trow *row, int current_cell){
+void row_append(Row *row, int current_cell){
     if (row->cap == row->size){
         row_resize(row, row->cap + 1);
     }
@@ -134,7 +145,7 @@ void row_append(Trow *row, int current_cell){
 }
 
 // @see: cell_append()
-void table_append(Ttable *table, int current_row){
+void table_append(Table *table, int current_row){
     if (table->cap == table->size){
         table_resize(table, current_row+1);
     }
@@ -148,46 +159,46 @@ void table_append(Ttable *table, int current_row){
  * Print the content of (cell, table, row)
  * @param: pointer to structure (cell, row, table)
  */
-void cell_print(Tcell *cell){
+void cell_print(Cell *cell, FILE *dst){
     for (int i = 0; i < cell->size; i++){
-        printf("%c", cell->text[i]);
+        fputc(cell->text[i], dst);
     }
 }
 
 // @see: cell_print
 // @params: delim to separate the cells
-void row_print(Trow *row, char delim){
+void row_print(Row *row, char delim, FILE *dst){
     for (int i = 0; i < row->size; i++){
-        cell_print(&row->cells[i]);
+        cell_print(&row->cells[i], dst);
         //put delimiter after each cell
         if (i != row->size-1){
-            putchar(delim);
+            fputc(delim, dst);
         }
     }
 } 
 
 // @see: cell_print
 // @params: passing delim for printing it in row_print
-void table_print(Ttable *table, char delim){
+void table_print(Table *table, char delim, FILE *dst){
     for (int i = 0; i < table->size; i++){
-        row_print(&table->rows[i], delim);
+        row_print(&table->rows[i], delim, dst);
         if (i != table->size-1){
-            putchar('\n');
+            fputc('\n', dst);
         }
-    } putchar('\n');
+    } fputc('\n', dst);
 }
 
 /*
  * Free pointer to a structure (cell, row, table)
  * @param: pointer to structure (cell, row, table)
  */
-void cell_destroy(Tcell *cell){
+void cell_destroy(Cell *cell){
     if (cell->cap)
         free(cell->text);
 }
 
 // @see: cell_destroy
-void row_destroy(Trow *row){
+void row_destroy(Row *row){
     for (int i = 0; i < row->size; i++){
         cell_destroy(&row->cells[i]);
     }
@@ -197,7 +208,7 @@ void row_destroy(Trow *row){
 }
 
 // @see: cell_destroy
-void table_destroy(Ttable *table){
+void table_destroy(Table *table){
     for (int i = 0; i < table->size; i++){
         row_destroy(&table->rows[i]);
     }
@@ -231,10 +242,9 @@ bool isdelim(char c, char *delims){
  * @params: source file
  * @params: delimiters
  */
-void create_table(Ttable *table, FILE *source, char *delims){
+void create_table(Table *table, FILE *source, char *delims){
     int c, current_cell = 0, current_row = 0;
-    int quotes_active = 0;
-    bool escape_active = false;
+    int quotes_active = -1;
 
     while ((c = fgetc(source)) != EOF){
         if (table->rows == NULL){
@@ -243,8 +253,6 @@ void create_table(Ttable *table, FILE *source, char *delims){
         if (table->rows[current_row].cells == NULL){
             row_append(&table->rows[current_row], current_cell);
         }
-        //rethink and rewrite this so, both \ and "" are working at the same time and are printed
-        escape_active = false;
 
         if (c == '\n'){ 
             current_cell = 0;
@@ -253,11 +261,15 @@ void create_table(Ttable *table, FILE *source, char *delims){
             continue;
         } else if (c == '"'){
             quotes_active *= -1;
-        } else if (c == '\\'){
-            escape_active = true;
+        } else if (c == '\\'){           
+            cell_append(&table->rows[current_row].cells[current_cell], c);
+            if ((c = fgetc(source)) != EOF){
+                cell_append(&table->rows[current_row].cells[current_cell], c);
+                continue;
+            }
         }
 
-        if (isdelim(c, delims) && !quotes_active && !escape_active){
+        if (isdelim(c, delims) && quotes_active == -1){
             current_cell++;
             row_append(&table->rows[current_row], current_cell);
             continue;
@@ -276,8 +288,9 @@ void create_table(Ttable *table, FILE *source, char *delims){
  * @params table: pointer to a table structre
  * @param: MAIN DELIMITER - first delimiter in delims
  */
-void end(Ttable *table, char delim){
-    table_print(table, delim);
+void end(Table *table, char delim, FILE *dst){
+    (void) dst;
+    table_print(table, delim, stdout);//TODO change to dst
     table_destroy(table);
 }
 
@@ -286,7 +299,7 @@ void end(Ttable *table, char delim){
  * @params args: agrv, argc in one structure
  * @return: string with space or string of delimiters
  */
-char * find_delim(const Targs args){
+char * find_delim(const Args args){
     char *delim = " ";
     if (args.argc >= 3){
         if (!strcmp(args.argv[1], "-d")){
@@ -303,7 +316,7 @@ char * find_delim(const Targs args){
  */
 FILE * open_file(char *src){
     FILE *fr;
-    fr = fopen(src, "r");
+    fr = fopen(src, "r+");
     return fr;
 }   
 
@@ -312,7 +325,7 @@ FILE * open_file(char *src){
  * @params table: pointer to a table structre
  * @return: maximal row size in a table
  */
-int get_max_row(Ttable table){
+int get_max_row(Table table){
     int max_row = 0;
     
     for (int i = 0; i < table.size; i++){
@@ -328,7 +341,7 @@ int get_max_row(Ttable table){
  * Fill the table with empty cells so each row has equal ammount of cells
  * @params table: pointer to a table structre
  */
-void fill_table(Ttable *table){
+void fill_table(Table *table){
     int max_row = get_max_row(*table);
     
     for (int i = 0; i < table->size; i++){
@@ -338,6 +351,19 @@ void fill_table(Ttable *table){
     }  
 }
 
+//FIXME pracovat na ulozeni argumentov do struktury a rozdelenie podla ;
+void get_commands(Args args, Commands *cmds){
+    cmds->content = malloc(20);
+    for (size_t i = 0; i < strlen(args.argv[1]); i++){
+        /*if (i == ';'){
+            //new command found
+        }*/
+        if (strlen(cmds->content) < )
+        cmds->content[i] = args.argv[1][i];
+    }
+    cmds->content[19] = '\0';
+    printf("%s\n", cmds->content);
+}
 
 int main(int argc, char **argv){
     if (argc < 3){
@@ -346,10 +372,12 @@ int main(int argc, char **argv){
         return 1;
     }
    
-    Targs args = {argv, argc};
-
+    Args args = {argv, argc};
     char *delims = find_delim(args);
-    
+    Table table;
+    table_init(&table);
+    Commands cmds = {NULL};
+
     FILE *fr;
     fr = open_file(argv[argc-1]);
     if (fr == NULL){
@@ -357,14 +385,15 @@ int main(int argc, char **argv){
         printf("no file was opened\n");
         return 1;
     }
-    
-    Ttable table;
-    table_init(&table);
-    create_table(&table, fr, delims);
-    
+   
+    create_table(&table, fr, delims);    
     fill_table(&table);
 
-    end(&table, DELIM);
+    get_commands(args, &cmds);
+
+    rewind(fr);
+    end(&table, DELIM, fr);
+    fclose(fr);
     return 0;
 }
 
