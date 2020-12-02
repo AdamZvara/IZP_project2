@@ -174,6 +174,14 @@ void cell_print(Cell *cell, FILE *dst){
     }
 }
 
+void get_cell_text(Cell *cell, char *string){
+    int i = 0;
+    for (i = 0; i < cell->size; i++){
+        string[i] = cell->text[i];
+    }
+    string[i+1] = '\0';
+}
+
 // @see: cell_print
 // @params: delim to separate the cells
 void row_print(Row *row, char delim, FILE *dst){
@@ -271,7 +279,6 @@ void create_table(Table *table, FILE *source, char *delims){
         } 
         else if (c == '"'){
             quotes_active *= -1;
-            continue;
 
         } 
         else if (c == '\\'){           
@@ -300,15 +307,6 @@ void create_table(Table *table, FILE *source, char *delims){
     //delete last row
     row_destroy(&table->rows[table->size]-1);
     table->size--;
-}
-
-/*
- * Function for printing the table and freeing its content
- * @params table: pointer to a table structre
- * @param: MAIN DELIMITER - first delimiter in delims
- */
-void end(Table *table){
-    table_destroy(table);
 }
 
 /*
@@ -532,12 +530,12 @@ int find_refference(Selection *sc, Table *table, double *reff, int *r_index, int
  * @param str: can be "min" or "max"
  * @return: 1 if any error occurs
  */
-int m_selection(Selection *sc, Table *table, char *str){
+void m_selection(Selection *sc, Table *table, char *str){
     double reff; 
     double content;
     int r_index = 1, c_index = 1;
     if (find_refference(sc, table, &reff, &r_index, &c_index))
-        return 1;
+        return;
     
     for (int i = sc->start_row-1; i < sc->end_row; i++){
         for (int j = sc->start_col-1; j < sc->end_col; j++){
@@ -561,7 +559,6 @@ int m_selection(Selection *sc, Table *table, char *str){
     }
     sc->start_row = sc->end_row = r_index+1;
     sc->start_col = sc->end_col = c_index+1;
-    return 0;
 }
 
 /*
@@ -571,12 +568,14 @@ int m_selection(Selection *sc, Table *table, char *str){
  * @param string: string to find in table
  */
 void find_selection(Selection *sc, Table *table, char *string){
+    char temp[1000]; 
     string[strlen(string)-1] = '\0'; //remove ] from the end
     for (int i = sc->start_row-1; i < sc->end_row; i++){
         for (int j = sc->start_col-1; j < sc->end_col; j++){
-            if (!strcmp(table->rows[i].cells[j].text, string)){
-                sc->start_row = sc->end_col = i;
-                sc->start_row = sc->end_col = j;
+            get_cell_text(&table->rows[i].cells[j], temp); 
+            if (!strcmp(temp, string)){
+                sc->start_row = sc->end_row = i+1;
+                sc->start_col = sc->end_col = j+1;
                 return;
             }
         }
@@ -595,14 +594,10 @@ int specify_selection(Selection *sc, char *arg, Table *table){
     char par1[100], par2[100];
 
     if (!strcmp(arg, "[max]")){
-        if (m_selection(sc, table, "max")){
-            return 1;
-        }
+        m_selection(sc, table, "max");
     } 
     else if (!strcmp(arg, "[min]")){
-        if (m_selection(sc, table, "min")){
-            return 1;
-        }
+        m_selection(sc, table, "min");
     } 
     else if (char_in_string(' ', arg)){
         if (sscanf(arg, "%99s %s", par1, par2) == 2 && !strcmp(par1,"[find"))
@@ -706,6 +701,13 @@ int advanced_selection(Selection *sc, char *arg, Table *table){
     return 0;
 }
 
+/*
+ * Function to determine, what type of selection was found
+ * @param sc: selection struct
+ * @param arg: command from user
+ * @param table: table struct
+ * return: 1 if any error has occured, 0 if everything was successful
+ */
 int set_selection(Selection *sc, char *arg, Table *table){
     int counter = char_in_string(SELECT_DELIM, arg);
 
@@ -725,13 +727,23 @@ int set_selection(Selection *sc, char *arg, Table *table){
     }
     check_table_size(sc, table);
     
-    //printf("%d %d %d %d ", sc->start_row, sc->end_row, sc->start_col, sc->end_col);
     printf("Selection:\n");
     print_selection(sc, table);
     putchar('\n');
+
     return 0;
 }
+
+void irow(){
+
+}
     
+int edit_tstruc(Selection sc, char *arg, Table *table){
+    if (!strcmp(arg, "irow")){  
+        
+    }
+    return 0;
+}
 
 /*
  * Process commands - separate them and indentify, call appropriate function
@@ -754,7 +766,13 @@ int parse_commands(char **argv, Selection *sc, Table *table){
                 printf("chybne argumenty selekcie\n");
                 return 1;
             }
+        } 
+        else if (!strcmp(curr_cmnd, "irow") || !strcmp(curr_cmnd,"arow") || 
+                 !strcmp(curr_cmnd,"drow") || !strcmp(curr_cmnd,"icol") || 
+                 !strcmp(curr_cmnd,"acol") || !strcmp(curr_cmnd, "dcol")){
+            edit_tstruc(*sc, curr_cmnd, table);
         }
+        
         curr_cmnd = strtok(NULL, CMD_DELIM);
     }
     return 0;
@@ -786,14 +804,14 @@ int main(int argc, char **argv){
     Selection sc = {1,1,1,1};
 
     if (parse_commands(argv, &sc, &table)){
-        end(&table);
+        table_destroy(&table);
         return 1;
     }
     
     putchar('\n');
     table_print(&table, DELIM, stdout); //TODO change to dst
     rewind(fr);
-    end(&table);
+    table_destroy(&table);
     fclose(fr);
     return 0;
 }
