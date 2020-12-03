@@ -17,7 +17,7 @@
 #define SELECT_DELIM ','
 
 //Structure for cells in rows
-typedef struct {
+typedef struct structCell{
     int size;
     int cap;
     char *text;
@@ -25,7 +25,7 @@ typedef struct {
 } Cell;
 
 //Strucure for rows in table
-typedef struct {
+typedef struct structRow {
     int size;
     int cap;
     Cell *cells;
@@ -158,6 +158,105 @@ void table_append(Table *table, int current_row){
     }
 }
 
+
+/*
+ * Free pointer to a structure (cell, row, table)
+ * @param: pointer to structure (cell, row, table)
+ */
+void cell_destroy(Cell *cell){
+    free(cell->text);
+    cell->cap = cell->size = 0;
+    
+}
+
+// @see: cell_destroy
+void row_destroy(Row *row){
+    for (int i = 0; i < row->size; i++){
+        cell_destroy(&row->cells[i]);
+    }
+
+    if (row->cap)
+        free(row->cells);
+}
+
+// @see: cell_destroy
+void table_destroy(Table *table){
+    for (int i = 0; i < table->size; i++){
+        row_destroy(&table->rows[i]);
+    }
+
+    if (table->cap){
+        free(table->rows);
+    }
+}
+
+void cell_clear(Cell *cell){
+    cell->size = cell->cap = 0;
+}
+
+void cell_insert(Row *row, int index){
+    Cell new_cell = cell_init();
+    cell_append(&new_cell, '\0');
+
+    row_append(row, row->size);
+    int i;
+    for (i = row->size-1; i != index; i--){
+        memcpy(&row->cells[i], &row->cells[i-1], sizeof(Cell));
+    }
+    row->cells[i] = new_cell;
+}
+
+
+void cell_rewrite(Row *row, int index, char *new_content){
+    cell_clear(&row->cells[index]);
+    for (unsigned i = 0; i < strlen(new_content); i++){
+        cell_append(&row->cells[index], new_content[i]);
+    }
+}
+
+void cell_delete(Row *row, int index){ //TODO doesnt work for [1,_]
+    if (row->cells[index].text){ 
+        cell_destroy(&row->cells[index]);
+        for (int i = index+1; i < row->size; i++){
+            memcpy(&row->cells[i-1], &row->cells[i], sizeof(Cell));
+        }
+        row->size--;
+    }
+}
+
+/*
+ * Move all rows by 1 to the left and create space for new row
+ * @param table: table struct
+ * @param index: index in table, where new row is created
+ */
+void row_insert(Table *table, int index){
+    Row new_row = row_init();
+    for (int i = 0; i < table->rows->size; i++){
+        row_append(&new_row, i);
+        cell_append(&new_row.cells[i], '\0');
+    }
+    table_append(table, table->size);
+    int i;
+    for (i = table->size-1; i != index; i--){
+        memcpy(&table->rows[i], &table->rows[i-1], sizeof(Row));
+    }
+    table->rows[index] = new_row;
+
+}
+
+/*
+ * Delete row at given position
+ * @param table: table struct
+ * @param index: index of row to delete
+ */
+void row_delete(Table *table, int index){
+    row_destroy(&table->rows[index]);
+    for (int i = index+1; i < table->size; i++){
+        memcpy(&table->rows[i-1], &table->rows[i], sizeof(Row));
+    }
+    table->size--;
+}
+
 /*
  * Print the content of (cell, table, row)
  * @param: pointer to structure (cell, row, table)
@@ -179,7 +278,7 @@ void get_cell_text(Cell *cell, char *string){
     for (i = 0; i < cell->size; i++){
         string[i] = cell->text[i];
     }
-    string[i+1] = '\0';
+    string[i] = '\0';
 }
 
 // @see: cell_print
@@ -204,37 +303,6 @@ void table_print(Table *table,  char delim, FILE *dst){
         }
     } fputc('\n', dst);
 }
-
-/*
- * Free pointer to a structure (cell, row, table)
- * @param: pointer to structure (cell, row, table)
- */
-void cell_destroy(Cell *cell){
-    if (cell->cap)
-        free(cell->text);
-}
-
-// @see: cell_destroy
-void row_destroy(Row *row){
-    for (int i = 0; i < row->size; i++){
-        cell_destroy(&row->cells[i]);
-    }
-
-    if (row->cap)
-        free(row->cells);
-}
-
-// @see: cell_destroy
-void table_destroy(Table *table){
-    for (int i = 0; i < table->size; i++){
-        row_destroy(&table->rows[i]);
-    }
-
-    if (table->cap){
-        free(table->rows);
-    }
-}
-
 
 /*
  * Checks if char is a delim
@@ -734,21 +802,61 @@ int set_selection(Selection *sc, char *arg, Table *table){
     return 0;
 }
 
-void irow(){
-
-}
-    
-int edit_tstruc(Selection sc, char *arg, Table *table){
-    if (!strcmp(arg, "irow")){  
-        
+/*
+ * Functions for editing structure of the whole table
+ * @param sc: selection struct
+ * @param arg: command from user
+ * @param table: table struct
+ */
+int edit_tstruc(Selection *sc, char *arg, Table *table){
+    for (int i = sc->start_row-1; i < sc->end_row; i++){
+        for (int j = sc->start_col-1; j < sc->end_col; j++){
+            if (!strcmp(arg, "irow")){
+                row_insert(table, i);
+            }
+            else if (!strcmp(arg, "arow")){
+                row_insert(table, i+1);
+            }
+            else if (!strcmp(arg, "icol")){
+                cell_insert(&table->rows[i], j);
+            }
+            else if (!strcmp(arg, "acol")){
+                cell_insert(&table->rows[i], j+1);
+            }
+            else if (!strcmp(arg, "dcol")){
+                cell_delete(&table->rows[i], j);
+            }
+            else if (!strcmp(arg, "clear")){
+                cell_clear(&table->rows[i].cells[j]);
+            }
+        }
+        if (!strcmp(arg, "drow")){ //when deleting reapeat for each row
+            row_delete(table, i);
+        }
     }
     return 0;
 }
 
 /*
+ * Functions for editing data in table 
+ */
+int edit_tdata(Selection *sc, Table *table, char *arg, char *param){
+    for (int i = sc->start_row-1; i < sc->end_row; i++){
+        for (int j = sc->start_col-1; j < sc->end_col; j++){
+            if (!strcmp(arg, "set")){
+                cell_rewrite(&table->rows[i], j, param);
+            }
+        }
+    }
+    return 0;
+}
+
+
+/*
  * Process commands - separate them and indentify, call appropriate function
- * @param argv: argument structure
+ * @param argv: program arguments 
  * @param sc: selection
+ * @param table: table structure
  */
 int parse_commands(char **argv, Selection *sc, Table *table){
     int pos;
@@ -769,10 +877,20 @@ int parse_commands(char **argv, Selection *sc, Table *table){
         } 
         else if (!strcmp(curr_cmnd, "irow") || !strcmp(curr_cmnd,"arow") || 
                  !strcmp(curr_cmnd,"drow") || !strcmp(curr_cmnd,"icol") || 
-                 !strcmp(curr_cmnd,"acol") || !strcmp(curr_cmnd, "dcol")){
-            edit_tstruc(*sc, curr_cmnd, table);
+                 !strcmp(curr_cmnd,"acol") || !strcmp(curr_cmnd, "dcol") ||
+                 !strcmp(curr_cmnd, "clear")){
+            edit_tstruc(sc, curr_cmnd, table);
         }
-        
+        else {
+            int len = char_index(' ', curr_cmnd, 1);
+            if (len){
+                char arg[len+1];
+                arg[len] = '\0';
+                char param[strlen(curr_cmnd)-len];
+                sscanf(curr_cmnd, "%s %s\n", arg, param);
+                edit_tdata(sc, table, arg, param);
+            }
+        }
         curr_cmnd = strtok(NULL, CMD_DELIM);
     }
     return 0;
@@ -800,7 +918,7 @@ int main(int argc, char **argv){
     table_init(&table);
     create_table(&table, fr, delims);    
     fill_table(&table);
-
+    
     Selection sc = {1,1,1,1};
 
     if (parse_commands(argv, &sc, &table)){
@@ -808,6 +926,7 @@ int main(int argc, char **argv){
         return 1;
     }
     
+    fill_table(&table);
     putchar('\n');
     table_print(&table, DELIM, stdout); //TODO change to dst
     rewind(fr);
