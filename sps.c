@@ -21,7 +21,7 @@
 #define TEMPORARY_MAX 10
 
 //Structure for cells in rows
-typedef struct structCell{
+typedef struct {
     int size;
     int cap;
     char *text;
@@ -29,7 +29,7 @@ typedef struct structCell{
 } Cell;
 
 //Strucure for rows in table
-typedef struct structRow {
+typedef struct {
     int size;
     int cap;
     Cell *cells;
@@ -234,7 +234,7 @@ void row_append(Row *row){
     }
 }
 
-/* Insert a new empty cell with default values (text = '\0')
+/* Insert a new empty cell with default values (text = "\0")
  * @param row: row struct
  * @param index: identifies where to insert the new cell
  */
@@ -293,7 +293,7 @@ void row_delete(Table *table, int index){
 
 /* Set default values to an empty table */
 void table_init(Table *table){
-    table->size = table->cap = 0;
+    table->size = 0;
     table->cap = 0;
     table->rows = NULL;
 }
@@ -484,8 +484,9 @@ void create_table(Table *table, FILE *source, char *delims){
         if (isdelim(c, delims)){
             table->rows[current_row].cells[current_cell].delim = true;
             }
+
         if (c != '"'){
-        cell_append(&table->rows[current_row].cells[current_cell], c);
+            cell_append(&table->rows[current_row].cells[current_cell], c);
         }
     }
 
@@ -819,11 +820,11 @@ int set_selection(Selection *sc, Selection *tmp_sc, char *arg, Table *table){
 
     int error;
     if (counter == 0){
-        error = specify_selection(sc, tmp_sc, arg, table);
+        error = specify_selection(sc, tmp_sc, arg, table); //[max]
     } else if (counter == 1){
-        error = simple_selection(sc, arg, table);
+        error = simple_selection(sc, arg, table); //[int,int]
     } else if (counter == 3){
-        error = advanced_selection(sc, arg, table);
+        error = advanced_selection(sc, arg, table); //[int,int,int,int]
     } else {
         error = 1;
     }
@@ -834,9 +835,9 @@ int set_selection(Selection *sc, Selection *tmp_sc, char *arg, Table *table){
     check_table_size(sc, table);
     
     /*debug mode*/
-    //printf("Selection:\n");
-    //print_selection(sc, table);
-    //putchar('\n');
+    printf("Selection:\n");
+    print_selection(sc, table);
+    putchar('\n'); putchar('\n');
 
     return 0;
 }
@@ -1138,7 +1139,7 @@ int main(int argc, char **argv){
     create_table(&table, file, delims);    
     fill_table(&table);
     
-    fclose(file); //comment for debug mode
+    //fclose(file); //comment for debug mode
 
     Selection sc = {1,1,1,1}; //default selection is first row,column
     Selection tmp_sc = {1,1,1,1};
@@ -1152,18 +1153,18 @@ int main(int argc, char **argv){
         return 1;
     }
 
-    
-    file = fopen(argv[argc-1], "w");                                  /*          */
-    if (file == NULL){                                                /* comment  */
-        fprintf(stderr, "Nastala chyba pri otvarani suboru\n");       /*   for    */
-        return 1;                                                     /*  debug   */
-    }                                                                 /*          */
+    /*
+    file = fopen(argv[argc-1], "w");                                  //          //
+    if (file == NULL){                                                // comment  //
+        fprintf(stderr, "Nastala chyba pri otvarani suboru\n");       //   for    //
+        return 1;                                                     //  debug   //
+    } */                                                                //          //
     
     fill_table(&table); 
     excess_columns(&table);
 
-    table_print(&table, DELIM, file);                                // comment for debug
-    //table_print(&table, DELIM, stdout);                            //uncomment for debug
+    //table_print(&table, DELIM, file);                                // comment for debug
+    table_print(&table, DELIM, stdout);                            //uncomment for debug
     
     table_destroy(&table);
     variables_destroy(&tmp_vars);
